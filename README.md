@@ -1,5 +1,7 @@
 # HoldWatch
 
+**GitHub:** [sathishkumar130685-ux/Holdwatch](https://github.com/sathishkumar130685-ux/Holdwatch) — use this repo when importing the project on Vercel.
+
 Web app that connects to **Zerodha Kite Connect**, shows your **equity holdings**, and **suggests when a stock drops** below a percentage you set versus your **average buy price**.
 
 This uses the official **Kite Connect API** (browser OAuth), not the Zerodha Kite MCP server — so it works without Cursor Desktop.
@@ -36,6 +38,19 @@ This uses the official **Kite Connect API** (browser OAuth), not the Zerodha Kit
    ```
    Open [http://localhost:4321](http://localhost:4321) → **Connect Zerodha**.
 
+## Put this code on your GitHub repo (one time)
+
+The Kite holdings app **is** HoldWatch. Your GitHub repo may be empty until you push this project once (from a PC or Mac with Git):
+
+```bash
+git clone <where-you-have-this-code>
+cd Holdwatch   # or kite-holdings
+git remote add github https://github.com/sathishkumar130685-ux/Holdwatch.git
+git push -u github main
+```
+
+Use a [GitHub personal access token](https://github.com/settings/tokens) as the password if Git asks. After `main` appears on GitHub, Vercel can import **Holdwatch** (see below).
+
 ## Deploying (free on Vercel)
 
 Your repo already includes `vercel.json` for Next.js. You only need a Vercel project linked to this Git repo and three secrets.
@@ -44,7 +59,7 @@ Your repo already includes `vercel.json` for Next.js. You only need a Vercel pro
 
 1. Open **[vercel.com](https://vercel.com)** in the browser and sign in (GitHub login works well).
 2. Tap **Add New… → Project**.
-3. **Import** the `kite-holdings` repository (connect GitHub first if Vercel does not see it).
+3. **Import** the **[Holdwatch](https://github.com/sathishkumar130685-ux/Holdwatch)** repository (connect GitHub first if Vercel does not see it).
 4. Leave framework **Next.js** and defaults as-is → **Deploy** (first build may fail until step 5 — that is OK).
 5. Open the project → **Settings → Environment Variables**. Add for **Production** (and Preview if you want):
 
