@@ -52,6 +52,11 @@ The Kite holdings app **is** HoldWatch. Copy it into your GitHub account with **
 5. Tap **Begin import** and wait until it finishes (usually a few minutes). You should see folders like `src/` and `package.json`.
 6. Continue with **Deploying on Vercel** below.
 
+**Import shows “something went wrong”?** GitHub’s importer often fails for `origin.cursor.com`. Skip import and use either:
+
+- **Deploy first (no GitHub):** In Cursor, ask the agent to create a **temporary Vercel deployment**, open the **claim** link on your phone (Vercel login), add env vars, then set Kite redirect URL.
+- **Fill GitHub from the agent:** On your phone, create a GitHub token ([Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens), enable **repo**), add it as secret `GITHUB_TOKEN` in your Cursor Cloud environment, then ask the agent to push to `sathishkumar130685-ux/Holdwatch`.
+
 <details>
 <summary>Optional: copy with Git on a computer</summary>
 
