@@ -225,13 +225,51 @@ export function Dashboard({
       {!configured && (
         <Alert>
           <AlertTitle>Kite Connect not configured</AlertTitle>
-          <AlertDescription>
-            Create a Kite Connect app at developers.kite.trade, then set{" "}
-            <code className="text-xs">KITE_API_KEY</code>,{" "}
-            <code className="text-xs">KITE_API_SECRET</code>, and{" "}
-            <code className="text-xs">SESSION_SECRET</code> in{" "}
-            <code className="text-xs">.env.local</code>. Set redirect URL to{" "}
-            <code className="text-xs">APP_URL/api/auth/callback</code>.
+          <AlertDescription className="space-y-2">
+            <p>
+              Create a Kite Connect app at{" "}
+              <a
+                href="https://developers.kite.trade/"
+                className="font-medium underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                developers.kite.trade
+              </a>
+              , then add these environment variables:
+            </p>
+            <ul className="list-inside list-disc text-sm">
+              <li>
+                <code className="text-xs">KITE_API_KEY</code> and{" "}
+                <code className="text-xs">KITE_API_SECRET</code>
+              </li>
+              <li>
+                <code className="text-xs">SESSION_SECRET</code> (32+ random
+                characters)
+              </li>
+              <li>
+                <code className="text-xs">APP_URL</code> = your site URL with no
+                trailing slash (e.g.{" "}
+                <code className="text-xs">
+                  https://temporary-rushing-sulfur-uqc718k.vercel.app
+                </code>
+                )
+              </li>
+            </ul>
+            <p>
+              On <strong>Vercel</strong>: Project → Settings → Environment
+              Variables → add for Production → <strong>Redeploy</strong>. Locally
+              use <code className="text-xs">.env.local</code> instead.
+            </p>
+            <p>
+              In Kite Connect, set redirect URL to{" "}
+              <code className="text-xs">APP_URL/api/auth/callback</code> (for
+              your Vercel URL:{" "}
+              <code className="text-xs">
+                https://temporary-rushing-sulfur-uqc718k.vercel.app/api/auth/callback
+              </code>
+              ).
+            </p>
           </AlertDescription>
         </Alert>
       )}
