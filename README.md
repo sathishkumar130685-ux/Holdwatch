@@ -38,24 +38,43 @@ This uses the official **Kite Connect API** (browser OAuth), not the Zerodha Kit
 
 ## Deploying (free on Vercel)
 
-### Option A — Cursor **Publish** (recommended)
+Your repo already includes `vercel.json` for Next.js. You only need a Vercel project linked to this Git repo and three secrets.
 
-Use the **Publish** control in this chat to connect Vercel and deploy from the repo. Then in the Vercel project **Settings → Environment Variables**, add:
+### On your phone (Vercel website)
 
-| Variable | Example |
-|----------|---------|
-| `KITE_API_KEY` | from developers.kite.trade |
-| `KITE_API_SECRET` | from developers.kite.trade |
-| `SESSION_SECRET` | 32+ random characters |
-| `APP_URL` | `https://your-project.vercel.app` (no trailing slash) |
+1. Open **[vercel.com](https://vercel.com)** in the browser and sign in (GitHub login works well).
+2. Tap **Add New… → Project**.
+3. **Import** the `kite-holdings` repository (connect GitHub first if Vercel does not see it).
+4. Leave framework **Next.js** and defaults as-is → **Deploy** (first build may fail until step 5 — that is OK).
+5. Open the project → **Settings → Environment Variables**. Add for **Production** (and Preview if you want):
 
-Redeploy after saving env vars. In Kite Connect, set redirect URL to `https://your-project.vercel.app/api/auth/callback`.
+   | Variable | Value |
+   |----------|--------|
+   | `KITE_API_KEY` | From [developers.kite.trade](https://developers.kite.trade/) |
+   | `KITE_API_SECRET` | Same Kite app |
+   | `SESSION_SECRET` | Any random string, **32+ characters** |
 
-### Option B — Claim a temporary deployment
+   `APP_URL` is **optional on Vercel** — the app uses your `*.vercel.app` URL automatically. Set it only if you use a custom domain.
 
-If a temporary Vercel URL was created for you, open the **claim** link (Vercel login required) to move it to your free Hobby account before it expires (~60 minutes). Then add the same environment variables as above.
+6. **Deployments → … on latest → Redeploy** so the new variables apply.
+7. Copy your live URL (e.g. `https://kite-holdings-xyz.vercel.app`). On **developers.kite.trade**, edit your app → **Redirect URL**:
+   ```
+   https://YOUR-VERCEL-URL.vercel.app/api/auth/callback
+   ```
+   Must match exactly (https, no trailing slash before `/api`).
+8. Open the Vercel URL on your phone → **Connect Zerodha** and complete login.
 
-Set the same variables on any host (`KITE_API_KEY`, `KITE_API_SECRET`, `SESSION_SECRET`, `APP_URL`). Update the Kite app redirect URL to match `APP_URL/api/auth/callback`.
+**Check:** visit `https://YOUR-URL.vercel.app/api/setup-check` — `ready` should be `true`.
+
+### Option — Cursor **Publish** (desktop)
+
+Use the **Publish** control in Cursor chat to connect Vercel and deploy from the repo, then add the same three environment variables and redeploy.
+
+### Custom domain
+
+After adding a domain in Vercel, set `APP_URL` to `https://your-domain.com` and add that domain’s callback URL in Kite Connect.
+
+Set the same core variables on any host (`KITE_API_KEY`, `KITE_API_SECRET`, `SESSION_SECRET`). Use `APP_URL` when the host does not set `VERCEL_URL`.
 
 ## Limitations & next steps
 

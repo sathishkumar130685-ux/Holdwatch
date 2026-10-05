@@ -19,8 +19,17 @@ export function isKiteConfigured(): boolean {
   );
 }
 
+/** Public site URL for OAuth redirects (APP_URL, or Vercel’s auto hostname). */
+export function resolvePublicAppUrl(): string | null {
+  const fromEnv = process.env.APP_URL?.replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  const host = process.env.VERCEL_URL?.replace(/^https?:\/\//, "");
+  if (host) return `https://${host}`;
+  return null;
+}
+
 export function getAppUrl(): string {
-  return process.env.APP_URL?.replace(/\/$/, "") ?? "http://localhost:4321";
+  return resolvePublicAppUrl() ?? "http://localhost:4321";
 }
 
 export function getKiteLoginUrl(): string {

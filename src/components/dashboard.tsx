@@ -87,6 +87,13 @@ export function Dashboard({
   const [dropPercent, setDropPercent] = useState("5");
 
   const notifiedRef = useRef<Set<string>>(new Set());
+  const [siteOrigin, setSiteOrigin] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSiteOrigin(window.location.origin);
+    }
+  }, []);
 
   const holdingOptions = useMemo(
     () =>
@@ -249,11 +256,8 @@ export function Dashboard({
               </li>
               <li>
                 <code className="text-xs">APP_URL</code> = your site URL with no
-                trailing slash (e.g.{" "}
-                <code className="text-xs">
-                  https://temporary-rushing-sulfur-uqc718k.vercel.app
-                </code>
-                )
+                trailing slash (optional on Vercel — it uses your deployment URL
+                automatically)
               </li>
             </ul>
             <p>
@@ -263,12 +267,12 @@ export function Dashboard({
             </p>
             <p>
               In Kite Connect, set redirect URL to{" "}
-              <code className="text-xs">APP_URL/api/auth/callback</code> (for
-              your Vercel URL:{" "}
               <code className="text-xs">
-                https://temporary-rushing-sulfur-uqc718k.vercel.app/api/auth/callback
+                {siteOrigin
+                  ? `${siteOrigin}/api/auth/callback`
+                  : "https://your-app.vercel.app/api/auth/callback"}
               </code>
-              ).
+              .
             </p>
           </AlertDescription>
         </Alert>
