@@ -36,9 +36,26 @@ This uses the official **Kite Connect API** (browser OAuth), not the Zerodha Kit
    ```
    Open [http://localhost:4321](http://localhost:4321) → **Connect Zerodha**.
 
-## Deploying
+## Deploying (free on Vercel)
 
-Set the same variables on your host (`KITE_API_KEY`, `KITE_API_SECRET`, `SESSION_SECRET`, `APP_URL`). Update the Kite app redirect URL to match `APP_URL/api/auth/callback`.
+### Option A — Cursor **Publish** (recommended)
+
+Use the **Publish** control in this chat to connect Vercel and deploy from the repo. Then in the Vercel project **Settings → Environment Variables**, add:
+
+| Variable | Example |
+|----------|---------|
+| `KITE_API_KEY` | from developers.kite.trade |
+| `KITE_API_SECRET` | from developers.kite.trade |
+| `SESSION_SECRET` | 32+ random characters |
+| `APP_URL` | `https://your-project.vercel.app` (no trailing slash) |
+
+Redeploy after saving env vars. In Kite Connect, set redirect URL to `https://your-project.vercel.app/api/auth/callback`.
+
+### Option B — Claim a temporary deployment
+
+If a temporary Vercel URL was created for you, open the **claim** link (Vercel login required) to move it to your free Hobby account before it expires (~60 minutes). Then add the same environment variables as above.
+
+Set the same variables on any host (`KITE_API_KEY`, `KITE_API_SECRET`, `SESSION_SECRET`, `APP_URL`). Update the Kite app redirect URL to match `APP_URL/api/auth/callback`.
 
 ## Limitations & next steps
 
