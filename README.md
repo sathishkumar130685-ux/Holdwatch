@@ -38,18 +38,33 @@ This uses the official **Kite Connect API** (browser OAuth), not the Zerodha Kit
    ```
    Open [http://localhost:4321](http://localhost:4321) → **Connect Zerodha**.
 
-## Put this code on your GitHub repo (one time)
+## Put this code on GitHub (no Git app needed — works on mobile)
 
-The Kite holdings app **is** HoldWatch. Your GitHub repo may be empty until you push this project once (from a PC or Mac with Git):
+The Kite holdings app **is** HoldWatch. Copy it into your GitHub account with **Import repository** (browser only):
+
+1. If **[Holdwatch](https://github.com/sathishkumar130685-ux/Holdwatch)** is empty, delete it first: repo → **Settings** → bottom → **Delete this repository** (only if it has no code you need).
+2. On your phone, open: **https://github.com/new/import**
+3. **Old repository’s clone URL** (paste exactly):
+   ```
+   https://origin.cursor.com/git/sathishay/kite-holdings.git
+   ```
+4. **Owner:** your account · **Repository name:** `Holdwatch` · choose Public or Private.
+5. Tap **Begin import** and wait until it finishes (usually a few minutes). You should see folders like `src/` and `package.json`.
+6. Continue with **Deploying on Vercel** below.
+
+<details>
+<summary>Optional: copy with Git on a computer</summary>
 
 ```bash
-git clone <where-you-have-this-code>
-cd Holdwatch   # or kite-holdings
+git clone https://origin.cursor.com/git/sathishay/kite-holdings.git
+cd kite-holdings
 git remote add github https://github.com/sathishkumar130685-ux/Holdwatch.git
 git push -u github main
 ```
 
-Use a [GitHub personal access token](https://github.com/settings/tokens) as the password if Git asks. After `main` appears on GitHub, Vercel can import **Holdwatch** (see below).
+Use a [GitHub personal access token](https://github.com/settings/tokens) as the password if Git asks.
+
+</details>
 
 ## Deploying (free on Vercel)
 
