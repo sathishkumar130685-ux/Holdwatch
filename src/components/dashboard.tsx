@@ -95,6 +95,29 @@ export function Dashboard({
     }
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("connected") !== "1") return;
+
+    void fetch("/api/auth/status")
+      .then((res) => res.json())
+      .then((data: { connected?: boolean; userId?: string | null }) => {
+        if (data.connected) {
+          setConnected(true);
+          setUserId(data.userId ?? null);
+        } else {
+          setError(
+            "Login completed but the session cookie was not saved. Try Connect again in a private window.",
+          );
+        }
+      })
+      .finally(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("connected");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      });
+  }, []);
+
   const holdingOptions = useMemo(
     () =>
       holdings.map((h) => ({

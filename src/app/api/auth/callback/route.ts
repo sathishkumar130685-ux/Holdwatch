@@ -4,13 +4,14 @@ import {
   homeRedirectUrl,
   isKiteConfigured,
 } from "@/lib/kite";
-import { getSession } from "@/lib/session";
+import { getSessionForResponse } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   if (!isKiteConfigured()) {
-    return NextResponse.redirect(
+    const response = NextResponse.redirect(
       homeRedirectUrl(request, { error: "not_configured" }),
     );
+    return response;
   }
 
   const requestToken = request.nextUrl.searchParams.get("request_token");
@@ -22,13 +23,16 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const successUrl = homeRedirectUrl(request, { connected: "1" });
+  const response = NextResponse.redirect(successUrl);
+
   try {
     const { access_token, user_id } = await exchangeRequestToken(requestToken);
-    const session = await getSession();
+    const session = await getSessionForResponse(request, response);
     session.accessToken = access_token;
     session.userId = user_id;
     await session.save();
-    return NextResponse.redirect(homeRedirectUrl(request, { connected: "1" }));
+    return response;
   } catch {
     return NextResponse.redirect(
       homeRedirectUrl(request, { error: "token_exchange" }),
