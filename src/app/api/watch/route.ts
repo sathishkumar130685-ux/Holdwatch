@@ -6,6 +6,7 @@ import {
   fetchLtp,
   instrumentKey,
   isKiteConfigured,
+  KitePermissionError,
 } from "@/lib/kite";
 import { getSession } from "@/lib/session";
 
@@ -25,7 +26,14 @@ export async function GET() {
     const instruments = holdings.map((h) =>
       instrumentKey(h.exchange, h.tradingsymbol),
     );
-    const ltpRaw = await fetchLtp(session.accessToken, instruments);
+    // Personal (free) Kite apps can read holdings, which already include
+    // last_price, but /quote/ltp returns 403 Insufficient permission.
+    let ltpRaw: Record<string, { last_price: number }> = {};
+    try {
+      ltpRaw = await fetchLtp(session.accessToken, instruments);
+    } catch (error) {
+      if (!(error instanceof KitePermissionError)) throw error;
+    }
     const ltpByInstrument: Record<string, number> = {};
     for (const [key, value] of Object.entries(ltpRaw)) {
       ltpByInstrument[key] = value.last_price;

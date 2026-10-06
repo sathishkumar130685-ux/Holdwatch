@@ -123,6 +123,13 @@ export async function exchangeRequestToken(
   return data.data;
 }
 
+export class KitePermissionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "KitePermissionError";
+  }
+}
+
 async function kiteGet<T>(
   path: string,
   accessToken: string,
@@ -143,7 +150,11 @@ async function kiteGet<T>(
   };
 
   if (!res.ok || data.status === "error") {
-    throw new Error(data.message ?? `Kite API error: ${path}`);
+    const message = data.message ?? `Kite API error: ${path}`;
+    if (res.status === 403 || /insufficient permission/i.test(message)) {
+      throw new KitePermissionError(message);
+    }
+    throw new Error(message);
   }
 
   return data.data as T;
