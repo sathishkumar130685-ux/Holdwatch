@@ -19,12 +19,27 @@ export function isKiteConfigured(): boolean {
   );
 }
 
+function isLocalDevAppUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
 /** Public site URL for OAuth redirects (APP_URL, or Vercel’s auto hostname). */
 export function resolvePublicAppUrl(): string | null {
   const fromEnv = process.env.APP_URL?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
-  const host = process.env.VERCEL_URL?.replace(/^https?:\/\//, "");
-  if (host) return `https://${host}`;
+  const vercelHost = process.env.VERCEL_URL?.replace(/^https?:\/\//, "");
+  if (fromEnv) {
+    // Common mistake: APP_URL=http://localhost:4321 copied into Vercel env.
+    if (isLocalDevAppUrl(fromEnv) && vercelHost) {
+      return `https://${vercelHost}`;
+    }
+    return fromEnv;
+  }
+  if (vercelHost) return `https://${vercelHost}`;
   return null;
 }
 
