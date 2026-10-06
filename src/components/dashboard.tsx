@@ -266,13 +266,15 @@ export function Dashboard({
               use <code className="text-xs">.env.local</code> instead.
             </p>
             <p>
-              In Kite Connect, set redirect URL to{" "}
+              In Kite Connect, set the <strong>only</strong> redirect URL to{" "}
               <code className="text-xs">
                 {siteOrigin
                   ? `${siteOrigin}/api/auth/callback`
                   : "https://your-app.vercel.app/api/auth/callback"}
               </code>
-              .
+              . Kite allows one URL per app — if it still says{" "}
+              <code className="text-xs">localhost:4321</code>, Zerodha will keep
+              sending you to localhost after login.
             </p>
           </AlertDescription>
         </Alert>

@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import type { NextRequest } from "next/server";
 import type { KiteHolding } from "./types";
 
 const KITE_API = "https://api.kite.trade";
@@ -31,7 +32,13 @@ function isLocalDevAppUrl(url: string): boolean {
 /** Public site URL for OAuth redirects (APP_URL, or Vercel’s auto hostname). */
 export function resolvePublicAppUrl(): string | null {
   const fromEnv = process.env.APP_URL?.replace(/\/$/, "");
-  const vercelHost = process.env.VERCEL_URL?.replace(/^https?:\/\//, "");
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(
+    /^https?:\/\//,
+    "",
+  );
+  const vercelHost =
+    productionHost ||
+    process.env.VERCEL_URL?.replace(/^https?:\/\//, "");
   if (fromEnv) {
     // Common mistake: APP_URL=http://localhost:4321 copied into Vercel env.
     if (isLocalDevAppUrl(fromEnv) && vercelHost) {
@@ -41,6 +48,38 @@ export function resolvePublicAppUrl(): string | null {
   }
   if (vercelHost) return `https://${vercelHost}`;
   return null;
+}
+
+/** Where to send the browser after OAuth — same host that received /api/auth/callback. */
+export function redirectOriginFromRequest(request: NextRequest): string {
+  const host =
+    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ??
+    request.headers.get("host");
+  if (host) {
+    const proto =
+      request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
+      (host.includes("localhost") || host.startsWith("127.0.0.1")
+        ? "http"
+        : "https");
+    return `${proto}://${host}`;
+  }
+  return request.nextUrl.origin;
+}
+
+export function homeRedirectUrl(
+  request: NextRequest,
+  searchParams: Record<string, string>,
+): string {
+  const url = new URL("/", redirectOriginFromRequest(request));
+  for (const [key, value] of Object.entries(searchParams)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+export function kiteOAuthCallbackUrl(): string | null {
+  const base = resolvePublicAppUrl();
+  return base ? `${base}/api/auth/callback` : null;
 }
 
 export function getAppUrl(): string {
