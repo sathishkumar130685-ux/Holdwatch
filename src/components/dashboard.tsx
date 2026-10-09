@@ -38,7 +38,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AlertRule, TriggeredAlert } from "@/lib/types";
+import { evaluateAlerts } from "@/lib/alert-engine";
+import {
+  appendPriceSamples,
+  readLocalAlertRules,
+  readPriceLog,
+  writeLocalAlertRules,
+  type PriceSample,
+} from "@/lib/price-history";
+import type { AlertBasis, AlertRule, TriggeredAlert } from "@/lib/types";
 
 type EnrichedHolding = {
   tradingsymbol: string;
@@ -46,9 +54,11 @@ type EnrichedHolding = {
   quantity: number;
   average_price: number;
   last_price: number;
+  close_price?: number | null;
   pnl: number;
   day_change_percentage: number;
   drop_from_avg_percent: number;
+  drop_from_prev_close_percent?: number | null;
 };
 
 const POLL_MS = 45_000;
@@ -85,6 +95,9 @@ export function Dashboard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [dropPercent, setDropPercent] = useState("5");
+  const [alertBasis, setAlertBasis] = useState<AlertBasis>("prev_close");
+  const [priceLog, setPriceLog] = useState<Record<string, PriceSample[]>>({});
+  const [historySymbol, setHistorySymbol] = useState("");
 
   const notifiedRef = useRef<Set<string>>(new Set());
   const [siteOrigin, setSiteOrigin] = useState<string | null>(null);
@@ -92,6 +105,7 @@ export function Dashboard({
   useEffect(() => {
     if (typeof window !== "undefined") {
       setSiteOrigin(window.location.origin);
+      setPriceLog(readPriceLog());
     }
   }, []);
 
@@ -118,6 +132,23 @@ export function Dashboard({
       });
   }, []);
 
+  const visibleTriggered = useMemo(() => {
+    const map = new Map<string, TriggeredAlert>();
+    for (const alert of triggered) {
+      const key =
+        alert.basis === "prev_close"
+          ? `${alert.exchange}:${alert.tradingsymbol}`
+          : alert.ruleId;
+      const previous = map.get(key);
+      if (!previous || alert.level > previous.level) map.set(key, alert);
+    }
+    return [...map.values()];
+  }, [triggered]);
+
+  const historySamples = useMemo(() => {
+    return [...(priceLog[historySymbol] ?? [])].slice(-12).reverse();
+  }, [historySymbol, priceLog]);
+
   const holdingOptions = useMemo(
     () =>
       holdings.map((h) => ({
@@ -127,11 +158,49 @@ export function Dashboard({
     [holdings],
   );
 
+  const rulesRef = useRef(rules);
+  useEffect(() => {
+    rulesRef.current = rules;
+  }, [rules]);
+
   const loadRules = useCallback(async () => {
+    const localRules = readLocalAlertRules();
     const res = await fetch("/api/alerts");
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (localRules.length > 0) {
+        rulesRef.current = localRules;
+        setRules(localRules);
+      }
+      return;
+    }
     const data = await res.json();
-    setRules(data.rules ?? []);
+    const serverRules = (data.rules ?? []) as AlertRule[];
+    if (serverRules.length > 0) {
+      rulesRef.current = serverRules;
+      setRules(serverRules);
+      writeLocalAlertRules(serverRules);
+      return;
+    }
+    if (localRules.length === 0) {
+      rulesRef.current = [];
+      setRules([]);
+      return;
+    }
+    rulesRef.current = localRules;
+    setRules(localRules);
+    for (const rule of localRules) {
+      await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exchange: rule.exchange,
+          tradingsymbol: rule.tradingsymbol,
+          basis: rule.basis ?? "average",
+          dropPercentFromAvg:
+            rule.basis === "prev_close" ? undefined : rule.dropPercentFromAvg,
+        }),
+      });
+    }
   }, []);
 
   const refreshWatch = useCallback(async () => {
@@ -145,11 +214,30 @@ export function Dashboard({
         setError(data.error ?? "Could not refresh prices");
         return;
       }
-      setHoldings(data.holdings ?? []);
-      setTriggered(data.triggered ?? []);
+      const nextHoldings = (data.holdings ?? []) as EnrichedHolding[];
+      setHoldings(nextHoldings);
+      const triggeredNow = evaluateAlerts(nextHoldings, {}, rulesRef.current);
+      setTriggered(triggeredNow);
       setCheckedAt(data.checkedAt ?? null);
+      setPriceLog(appendPriceSamples(nextHoldings));
+      setHistorySymbol((current) => {
+        if (current) return current;
+        const first = nextHoldings[0];
+        return first ? `${first.exchange}:${first.tradingsymbol}` : "";
+      });
 
-      for (const alert of data.triggered ?? []) {
+      const freshDay = new Map<string, TriggeredAlert[]>();
+      for (const alert of triggeredNow) {
+        if (alert.basis === "prev_close") {
+          const day = alert.triggeredAt.slice(0, 10);
+          const key = `${alert.exchange}:${alert.tradingsymbol}:${alert.level}:${day}`;
+          if (notifiedRef.current.has(key)) continue;
+          notifiedRef.current.add(key);
+          const group = `${alert.exchange}:${alert.tradingsymbol}`;
+          freshDay.set(group, [...(freshDay.get(group) ?? []), alert]);
+          continue;
+        }
+
         const key = `${alert.ruleId}:${alert.triggeredAt.slice(0, 16)}`;
         if (!notifiedRef.current.has(key)) {
           notifiedRef.current.add(key);
@@ -159,6 +247,18 @@ export function Dashboard({
           });
         }
       }
+
+      for (const alerts of freshDay.values()) {
+        const top = alerts[alerts.length - 1];
+        const levels = alerts.map((alert) => alert.level).join("%, ");
+        toast.warning(
+          `${top.tradingsymbol} crossed −${levels}% from yesterday's close`,
+          {
+            description: `Price ${formatInr(top.lastPrice)} vs close ${formatInr(top.averagePrice)}`,
+            duration: 12_000,
+          },
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -166,8 +266,7 @@ export function Dashboard({
 
   useEffect(() => {
     if (!connected) return;
-    void loadRules();
-    void refreshWatch();
+    void loadRules().then(() => refreshWatch());
     const id = window.setInterval(() => void refreshWatch(), POLL_MS);
     return () => window.clearInterval(id);
   }, [connected, loadRules, refreshWatch]);
@@ -175,7 +274,8 @@ export function Dashboard({
   async function addRule() {
     const [exchange, tradingsymbol] = selectedSymbol.split(":");
     const pct = Number(dropPercent);
-    if (!exchange || !tradingsymbol || !Number.isFinite(pct)) return;
+    if (!exchange || !tradingsymbol) return;
+    if (alertBasis === "average" && !Number.isFinite(pct)) return;
 
     const res = await fetch("/api/alerts", {
       method: "POST",
@@ -183,7 +283,8 @@ export function Dashboard({
       body: JSON.stringify({
         exchange,
         tradingsymbol,
-        dropPercentFromAvg: pct,
+        basis: alertBasis,
+        dropPercentFromAvg: alertBasis === "average" ? pct : undefined,
       }),
     });
     const data = await res.json();
@@ -191,9 +292,16 @@ export function Dashboard({
       toast.error("Could not save alert");
       return;
     }
-    setRules(data.rules ?? []);
+    const nextRules = (data.rules ?? []) as AlertRule[];
+    rulesRef.current = nextRules;
+    setRules(nextRules);
+    writeLocalAlertRules(nextRules);
     setDialogOpen(false);
-    toast.success(`Alert set for ${tradingsymbol} at −${pct}% from average`);
+    toast.success(
+      alertBasis === "prev_close"
+        ? `Day-drop alerts set for ${tradingsymbol} at −1% through −5%`
+        : `Alert set for ${tradingsymbol} at −${pct}% from average`,
+    );
     void refreshWatch();
   }
 
@@ -202,7 +310,12 @@ export function Dashboard({
       method: "DELETE",
     });
     const data = await res.json();
-    if (res.ok) setRules(data.rules ?? []);
+    if (res.ok) {
+      const nextRules = (data.rules ?? []) as AlertRule[];
+      rulesRef.current = nextRules;
+      setRules(nextRules);
+      writeLocalAlertRules(nextRules);
+    }
   }
 
   return (
@@ -303,7 +416,7 @@ export function Dashboard({
         </Alert>
       )}
 
-      {connected && triggered.length > 0 && (
+      {connected && visibleTriggered.length > 0 && (
         <Card className="border-amber-200 bg-amber-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-base text-amber-900">
@@ -314,7 +427,7 @@ export function Dashboard({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {triggered.map((t) => (
+            {visibleTriggered.map((t) => (
               <p key={t.ruleId + t.triggeredAt} className="text-sm text-amber-950">
                 {t.message}
               </p>
@@ -362,6 +475,28 @@ export function Dashboard({
                     </Select>
                   </div>
                   <div className="grid gap-2">
+                    <Label>Alert when</Label>
+                    <Select
+                      value={alertBasis}
+                      onValueChange={(value) =>
+                        setAlertBasis(value === "average" ? "average" : "prev_close")
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prev_close">
+                          Yesterday&apos;s close falls 1%, 2%, 3%, 4%, and 5%
+                        </SelectItem>
+                        <SelectItem value="average">
+                          Price falls from my average buy
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {alertBasis === "average" && (
+                  <div className="grid gap-2">
                     <Label htmlFor="drop">Drop from average (%)</Label>
                     <Input
                       id="drop"
@@ -377,6 +512,15 @@ export function Dashboard({
                       average buy price.
                     </p>
                   </div>
+                  )}
+                  {alertBasis === "prev_close" && (
+                    <p className="text-xs text-zinc-500">
+                      You get a separate alert each time the stock crosses 1%,
+                      2%, 3%, 4%, and 5% below yesterday&apos;s close. This uses
+                      the close price on your holdings, so it works on the free
+                      Kite app.
+                    </p>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button onClick={() => void addRule()} disabled={!selectedSymbol}>
@@ -405,6 +549,7 @@ export function Dashboard({
                     <TableHead className="text-right">Avg</TableHead>
                     <TableHead className="text-right">LTP</TableHead>
                     <TableHead className="text-right">vs Avg</TableHead>
+                    <TableHead className="text-right">Today</TableHead>
                     <TableHead className="text-right">P&amp;L</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -436,6 +581,17 @@ export function Dashboard({
                       </TableCell>
                       <TableCell
                         className={`text-right ${
+                          (h.drop_from_prev_close_percent ?? 0) > 0
+                            ? "text-red-600"
+                            : "text-emerald-600"
+                        }`}
+                      >
+                        {h.drop_from_prev_close_percent == null
+                          ? "—"
+                          : `${h.drop_from_prev_close_percent > 0 ? "−" : "+"}${Math.abs(h.drop_from_prev_close_percent).toFixed(2)}%`}
+                      </TableCell>
+                      <TableCell
+                        className={`text-right ${
                           h.pnl >= 0 ? "text-emerald-600" : "text-red-600"
                         }`}
                       >
@@ -449,6 +605,91 @@ export function Dashboard({
           )}
         </CardContent>
       </Card>
+
+      {connected && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Price log on this phone</CardTitle>
+            <CardDescription>
+              Each refresh is saved in this browser. This is not Zerodha&apos;s
+              multi-day candle history — that needs the paid Connect API.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {holdingOptions.length === 0 ? (
+              <p className="text-sm text-zinc-600">
+                Prices will appear here after the first refresh.
+              </p>
+            ) : (
+              <>
+                <Select
+                  value={historySymbol}
+                  onValueChange={(value) => setHistorySymbol(value ?? "")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose holding" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {holdingOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {historySamples.length === 0 ? (
+                  <p className="text-sm text-zinc-600">
+                    No saved prices for this stock yet.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Time</TableHead>
+                          <TableHead className="text-right">Price</TableHead>
+                          <TableHead className="text-right">vs close</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {historySamples.map((sample) => {
+                          const drop =
+                            sample.prevClose && sample.prevClose > 0
+                              ? ((sample.prevClose - sample.price) /
+                                  sample.prevClose) *
+                                100
+                              : null;
+                          return (
+                            <TableRow key={sample.at}>
+                              <TableCell>
+                                {new Date(sample.at).toLocaleString("en-IN")}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatInr(sample.price)}
+                              </TableCell>
+                              <TableCell
+                                className={`text-right ${
+                                  (drop ?? 0) > 0
+                                    ? "text-red-600"
+                                    : "text-emerald-600"
+                                }`}
+                              >
+                                {drop == null
+                                  ? "—"
+                                  : `${drop > 0 ? "−" : "+"}${Math.abs(drop).toFixed(2)}%`}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {connected && (
         <Card>
@@ -473,8 +714,10 @@ export function Dashboard({
                     className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
                   >
                     <span>
-                      <strong>{r.tradingsymbol}</strong> ({r.exchange}) — alert
-                      at −{r.dropPercentFromAvg}% from average
+                      <strong>{r.tradingsymbol}</strong> ({r.exchange}) —{" "}
+                      {r.basis === "prev_close"
+                        ? "alert at −1%, −2%, −3%, −4%, and −5% from yesterday's close"
+                        : `alert at −${r.dropPercentFromAvg}% from average`}
                     </span>
                     <Button
                       variant="ghost"

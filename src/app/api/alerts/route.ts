@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listAlertRules, saveAlertRules } from "@/lib/alerts-store";
-import type { AlertRule } from "@/lib/types";
+import { DAY_DROP_LEVELS, type AlertRule } from "@/lib/types";
 import { getSession } from "@/lib/session";
 
 export async function GET() {
@@ -21,15 +21,22 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     tradingsymbol: string;
     exchange: string;
-    dropPercentFromAvg: number;
+    dropPercentFromAvg?: number;
+    basis?: "average" | "prev_close";
   };
 
+  const basis = body.basis === "prev_close" ? "prev_close" : "average";
+  const dropPercentFromAvg = body.dropPercentFromAvg;
+
+  if (!body.tradingsymbol || !body.exchange) {
+    return NextResponse.json({ error: "invalid_rule" }, { status: 400 });
+  }
+
   if (
-    !body.tradingsymbol ||
-    !body.exchange ||
-    typeof body.dropPercentFromAvg !== "number" ||
-    body.dropPercentFromAvg <= 0 ||
-    body.dropPercentFromAvg > 100
+    basis === "average" &&
+    (typeof dropPercentFromAvg !== "number" ||
+      dropPercentFromAvg <= 0 ||
+      dropPercentFromAvg > 100)
   ) {
     return NextResponse.json({ error: "invalid_rule" }, { status: 400 });
   }
@@ -39,7 +46,9 @@ export async function POST(request: NextRequest) {
     id: crypto.randomUUID(),
     tradingsymbol: body.tradingsymbol.toUpperCase(),
     exchange: body.exchange.toUpperCase(),
-    dropPercentFromAvg: body.dropPercentFromAvg,
+    basis,
+    dropPercentFromAvg: basis === "average" ? dropPercentFromAvg! : 5,
+    dropLevels: basis === "prev_close" ? [...DAY_DROP_LEVELS] : undefined,
     enabled: true,
     createdAt: new Date().toISOString(),
   };

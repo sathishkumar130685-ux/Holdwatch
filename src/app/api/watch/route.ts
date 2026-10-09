@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listAlertRules } from "@/lib/alerts-store";
-import { evaluateAlerts } from "@/lib/alert-engine";
+import { evaluateAlerts, previousClose } from "@/lib/alert-engine";
 import {
   fetchHoldings,
   fetchLtp,
@@ -44,11 +44,22 @@ export async function GET() {
     const enriched = holdings.map((h) => {
       const key = instrumentKey(h.exchange, h.tradingsymbol);
       const lastPrice = ltpByInstrument[key] ?? h.last_price;
+      const prevClose = previousClose(h);
       const dropFromAvg =
         h.average_price > 0
           ? ((h.average_price - lastPrice) / h.average_price) * 100
           : 0;
-      return { ...h, last_price: lastPrice, drop_from_avg_percent: dropFromAvg };
+      const dropFromPrevClose =
+        prevClose && prevClose > 0
+          ? ((prevClose - lastPrice) / prevClose) * 100
+          : null;
+      return {
+        ...h,
+        last_price: lastPrice,
+        close_price: prevClose ?? h.close_price,
+        drop_from_avg_percent: dropFromAvg,
+        drop_from_prev_close_percent: dropFromPrevClose,
+      };
     });
 
     return NextResponse.json({
